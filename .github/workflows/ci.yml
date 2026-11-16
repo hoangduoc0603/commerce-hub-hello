@@ -17,15 +17,19 @@ on:
 permissions:
   contents: read
 
-# PR: hủy lần chạy cũ khi có commit mới. Push vào main: không hủy, để lần push đang dở không bị cắt ngang.
+# PR: chung một nhóm theo ref, lần chạy mới hủy lần cũ. Sự kiện khác (push vào main, schedule, workflow_dispatch):
+# mỗi lần chạy một nhóm riêng (run_id), không xếp hàng. Lý do (review G0-23): một nhóm chỉ giữ MỘT lần chạy đang
+# chờ, lần mới tới sẽ hủy lần đang chờ kể cả khi cancel-in-progress là false; dùng chung nhóm theo ref thì lần chạy
+# theo lịch hoặc push kế tiếp hủy lần push đang chờ, commit đó không bao giờ có image.
+# https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ci:
     # Ghim SHA 40 ký tự của commit release, comment là tên release (ci-cd.md, "Reusable workflow cho polyrepo").
-    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@4714554242fedd3f829228dc9ee1913eacdaaf7f # v0.2.0
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@152b52fc524f56f2a2898658728730da2b26b506 # v0.2.1
     # Mức trần; từng job bên trong tự hạ. contents: write chỉ cho job dependency-graph trên main.
     permissions:
       contents: write
