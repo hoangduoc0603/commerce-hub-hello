@@ -25,7 +25,7 @@ concurrency:
 jobs:
   ci:
     # Ghim SHA 40 ký tự của commit release, comment là tên release (ci-cd.md, "Reusable workflow cho polyrepo").
-    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@b8c6fdee7e158a8e42edcdc946cca992a69484e2 # nhánh g0-23-java-service-wf, chưa release
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@4714554242fedd3f829228dc9ee1913eacdaaf7f # v0.2.0
     # Mức trần; từng job bên trong tự hạ. contents: write chỉ cho job dependency-graph trên main.
     permissions:
       contents: write
