@@ -1,0 +1,35 @@
+# CI của hello: build, test, image, quét, push GHCR. Toàn bộ logic nằm trong reusable workflow java-service.yml của
+# platform; file này chỉ chọn sự kiện và cấp quyền. Chuẩn: docs/standards/ci-cd.md (repo docs).
+name: ci
+
+on:
+  # Push vào main: build, quét rồi push ghcr.io/<owner>/commerce-hub-hello:<sha>, gửi dependency graph.
+  push:
+    branches: [main]
+  # PR: chỉ build và quét, không push, token không có packages: write.
+  pull_request:
+  # Quét lại hằng tuần với DB Trivy mới (G0-23 Q10). Không push: base ghim digest nên build lại không nhận bản vá;
+  # bản vá đến qua PR Dependabot đổi digest. Giờ lẻ để tránh giờ chẵn đông runner.
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# PR: hủy lần chạy cũ khi có commit mới. Push vào main: không hủy, để lần push đang dở không bị cắt ngang.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    # Ghim SHA 40 ký tự của commit release, comment là tên release (ci-cd.md, "Reusable workflow cho polyrepo").
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@b8c6fdee7e158a8e42edcdc946cca992a69484e2 # nhánh g0-23-java-service-wf, chưa release
+    # Mức trần; từng job bên trong tự hạ. contents: write chỉ cho job dependency-graph trên main.
+    permissions:
+      contents: write
+      packages: write
+      security-events: write
+    with:
+      image: commerce-hub-hello

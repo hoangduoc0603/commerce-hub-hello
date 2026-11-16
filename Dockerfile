@@ -33,22 +33,13 @@ COPY --from=extract /builder/extracted/application/ ./
 # Chạy trước USER: còn là root nên ghi được vào /application; app.aot thuộc root, user 10001 chỉ đọc.
 RUN java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh -jar application.jar
 
-# ARG và LABEL đặt SAU mọi lệnh RUN: mọi RUN đứng sau một ARG dùng nó làm biến môi trường, nên ARG
-# đổi giá trị (CREATED đổi mỗi lần build) làm các RUN đó mất cache, kể cả training AOT. Đặt ở đây thì
-# build không đổi code dùng lại toàn bộ layer. LABEL chỉ là metadata, không tạo layer.
-# https://docs.docker.com/reference/dockerfile/#impact-on-build-caching
-# Giá trị truyền bằng --build-arg (CI ở bước 9; local bằng git rev-parse và date).
-ARG REVISION=unknown
-ARG VERSION=unknown
-ARG CREATED=unknown
-
-# 7 nhãn OCI: truy được image về commit và về base image khi có CVE.
+# Nhãn tĩnh (G0-23 Q8). revision, version, created do CI đặt lúc build (labels: của build-push-action trong
+# platform/.github/workflows/container-image.yml), vì chỉ CI biết giá trị. Image build ở máy thiếu revision
+# và created, còn version thừa hưởng "24.04" từ nhãn của base Ubuntu (đo 2026-11-17); CI đặt đè.
+# LABEL chỉ là metadata, không tạo layer. source cũng do CI đặt; để đây cho image build ở máy.
 # base.digest phải trùng digest ở FROM. Khi Dependabot đổi FROM, sửa dòng này trong cùng PR
 # (Dependabot có tự sửa label không: chưa xác minh, kiểm ở PR digest đầu tiên).
 LABEL org.opencontainers.image.source="https://github.com/hoangduoc0603/commerce-hub-hello" \
-      org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.created="${CREATED}" \
       org.opencontainers.image.title="hello" \
       org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:25-jre-noble" \
       org.opencontainers.image.base.digest="sha256:e3b6f7887a50f20d8f07abf279d8a81a5953fb398a9555bd9edd56b9bd15968c"
