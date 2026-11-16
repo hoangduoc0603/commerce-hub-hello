@@ -5,3 +5,11 @@ spring:
   threads:
     virtual:
       enabled: true
+
+management:
+  server:
+    port: 8081
+  endpoint:
+    health:
+      probes:
+        add-additional-paths: true

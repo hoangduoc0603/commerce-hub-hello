@@ -1,0 +1,5 @@
+# Allowlist: loại mọi thứ, chỉ mở lại jar mà Dockerfile COPY.
+# Chặt hơn danh sách loại trừ của container-image.md: .git, .gradle, build/, .env*, *.key, .idea
+# đều bị loại, kể cả file mới thêm sau này mà không ai nhớ thêm vào danh sách.
+*
+!build/libs/*.jar
