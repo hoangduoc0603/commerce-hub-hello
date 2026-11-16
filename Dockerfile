@@ -13,7 +13,31 @@ RUN java -Djarmode=tools -jar application.jar extract --layers --destination ext
 # (đa kiến trúc). Dependabot ecosystem docker mở PR khi digest đổi.
 FROM eclipse-temurin:25-jre-noble@sha256:e3b6f7887a50f20d8f07abf279d8a81a5953fb398a9555bd9edd56b9bd15968c
 
-# Giá trị đổi theo từng lần build, truyền bằng --build-arg (CI ở bước 9; local ở lệnh build bên dưới).
+# User hệ thống với UID/GID số cố định. UID số để kubelet kiểm được runAsNonRoot (tên user thì không);
+# không home, không shell đăng nhập.
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
+
+WORKDIR /application
+# 4 layer theo thứ tự ít đổi → hay đổi. Sửa code chỉ đổi layer cuối (application, ~12 kB).
+# File thuộc root, user 10001 chỉ đọc: app không sửa được chính nó.
+COPY --from=extract /builder/extracted/dependencies/ ./
+COPY --from=extract /builder/extracted/spring-boot-loader/ ./
+COPY --from=extract /builder/extracted/snapshot-dependencies/ ./
+COPY --from=extract /builder/extracted/application/ ./
+
+# AOT cache (JEP 514/515): chạy app một lần lúc build, ghi class đã nạp và liên kết vào app.aot.
+# Chạy trong RUNTIME stage: cache chỉ dùng được với đúng jar, JDK, OS và kiến trúc lúc train.
+# spring.context.exit=onRefresh: app tự thoát sau khi context khởi tạo xong. hello không có DB,
+# Kafka ở G0; ticket 26 thêm DB thì phải tắt kết nối ngoài cho riêng lệnh này (container-image.md).
+# Chạy trước USER: còn là root nên ghi được vào /application; app.aot thuộc root, user 10001 chỉ đọc.
+RUN java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh -jar application.jar
+
+# ARG và LABEL đặt SAU mọi lệnh RUN: mọi RUN đứng sau một ARG dùng nó làm biến môi trường, nên ARG
+# đổi giá trị (CREATED đổi mỗi lần build) làm các RUN đó mất cache, kể cả training AOT. Đặt ở đây thì
+# build không đổi code dùng lại toàn bộ layer. LABEL chỉ là metadata, không tạo layer.
+# https://docs.docker.com/reference/dockerfile/#impact-on-build-caching
+# Giá trị truyền bằng --build-arg (CI ở bước 9; local bằng git rev-parse và date).
 ARG REVISION=unknown
 ARG VERSION=unknown
 ARG CREATED=unknown
@@ -29,22 +53,10 @@ LABEL org.opencontainers.image.source="https://github.com/hoangduoc0603/commerce
       org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:25-jre-noble" \
       org.opencontainers.image.base.digest="sha256:e3b6f7887a50f20d8f07abf279d8a81a5953fb398a9555bd9edd56b9bd15968c"
 
-# User hệ thống với UID/GID số cố định. UID số để kubelet kiểm được runAsNonRoot (tên user thì không);
-# không home, không shell đăng nhập.
-RUN groupadd --system --gid 10001 app \
- && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
-
-WORKDIR /application
-# 4 layer theo thứ tự ít đổi → hay đổi. Sửa code chỉ đổi layer cuối (application, ~12 kB).
-# File thuộc root, user 10001 chỉ đọc: app không sửa được chính nó.
-COPY --from=extract /builder/extracted/dependencies/ ./
-COPY --from=extract /builder/extracted/spring-boot-loader/ ./
-COPY --from=extract /builder/extracted/snapshot-dependencies/ ./
-COPY --from=extract /builder/extracted/application/ ./
-
 USER 10001:10001
 # Chỉ để ghi lại: 8080 cổng chính, 8081 Actuator (bước 4). Không mở cổng nào thật.
 EXPOSE 8080 8081
 # Dạng exec (mảng JSON): java là PID 1, nhận SIGTERM, chạy graceful shutdown.
-# Bước 6 thêm -XX:AOTCache vào đây.
-ENTRYPOINT ["java", "-jar", "application.jar"]
+# -XX:AOTCache: nạp cache. Mặc định AOTMode=auto: cache hỏng hay lệch thì chạy tiếp không cache,
+# nên kiểm bằng -Xlog:aot và -XX:AOTMode=on.
+ENTRYPOINT ["java", "-XX:AOTCache=app.aot", "-jar", "application.jar"]

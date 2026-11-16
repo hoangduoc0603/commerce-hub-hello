@@ -30,6 +30,8 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Lệch mặc định Initializr: tắt plain jar (hello-…-plain.jar) mà Boot plugin sinh cạnh fat jar.
+// Service chỉ chạy bằng fat jar; có hai file thì Dockerfile `COPY build/libs/*.jar` khớp 2 file.
 tasks.named('jar') {
     enabled = false
 }
