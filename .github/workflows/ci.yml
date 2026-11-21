@@ -29,7 +29,7 @@ concurrency:
 jobs:
   ci:
     # Ghim SHA 40 ký tự của commit release, comment là tên release (ci-cd.md, "Reusable workflow cho polyrepo").
-    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@152b52fc524f56f2a2898658728730da2b26b506 # v0.2.1
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@db4586ce86ec33d7583e4708ed66382436b2b9e5 # v0.3.0
     # Mức trần; từng job bên trong tự hạ. contents: write chỉ cho job dependency-graph trên main.
     permissions:
       contents: write
@@ -37,3 +37,29 @@ jobs:
       security-events: write
     with:
       image: commerce-hub-hello
+
+  # Deploy lên lab qua GitOps: ghi digest vừa push vào repo gitops, Argo CD trên lab tự kéo về.
+  # CI không có token Argo CD, không gọi kubectl (ci-cd.md, "Deploy qua GitOps"). Ticket G0-24.
+  deploy:
+    needs: ci
+    # Chỉ push vào nhánh mặc định VÀ đã có image. digest rỗng khi container-image.yml không push (PR, schedule,
+    # workflow_dispatch). Hai điều kiện trùng ý, giữ cả hai để đọc là hiểu (ci-cd.md, "Repo public": job cập nhật
+    # gitops chỉ chạy khi github.event_name == 'push' trên nhánh mặc định).
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      needs.ci.outputs.digest != ''
+    # Hàng đợi (concurrency update-gitops-lab, queue: max) nằm trong job của workflow được gọi.
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/update-gitops.yml@db4586ce86ec33d7583e4708ed66382436b2b9e5 # v0.3.0
+    # Chỉ đọc compare API của repo này. Quyền ghi gitops nằm ở token GitHub App, không ở GITHUB_TOKEN.
+    permissions:
+      contents: read
+    with:
+      # Tên thư mục trong gitops/envs/lab/. Môi trường mặc định là lab.
+      service: hello
+      digest: ${{ needs.ci.outputs.digest }}
+      # Không bí mật: variable của repo (G0-24 bước 1).
+      client-id: ${{ vars.GITOPS_APP_CLIENT_ID }}
+    # Truyền tường minh, không secrets: inherit: workflow chung chỉ nhận đúng secret nó cần.
+    secrets:
+      app-private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
