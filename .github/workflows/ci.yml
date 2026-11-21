@@ -29,7 +29,7 @@ concurrency:
 jobs:
   ci:
     # Ghim SHA 40 ký tự của commit release, comment là tên release (ci-cd.md, "Reusable workflow cho polyrepo").
-    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@db4586ce86ec33d7583e4708ed66382436b2b9e5 # v0.3.0
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/java-service.yml@2a3105b2f469c20a34fc581abc8963f61fa0aec0 # v0.3.1
     # Mức trần; từng job bên trong tự hạ. contents: write chỉ cho job dependency-graph trên main.
     permissions:
       contents: write
@@ -50,7 +50,7 @@ jobs:
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       needs.ci.outputs.digest != ''
     # Hàng đợi (concurrency update-gitops-lab, queue: max) nằm trong job của workflow được gọi.
-    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/update-gitops.yml@db4586ce86ec33d7583e4708ed66382436b2b9e5 # v0.3.0
+    uses: hoangduoc0603/commerce-hub-platform/.github/workflows/update-gitops.yml@2a3105b2f469c20a34fc581abc8963f61fa0aec0 # v0.3.1
     # Chỉ đọc compare API của repo này. Quyền ghi gitops nằm ở token GitHub App, không ở GITHUB_TOKEN.
     permissions:
       contents: read
