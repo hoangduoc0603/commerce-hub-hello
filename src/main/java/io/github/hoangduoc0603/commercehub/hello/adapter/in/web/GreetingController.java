@@ -2,6 +2,9 @@ package io.github.hoangduoc0603.commercehub.hello.adapter.in.web;
 
 import io.github.hoangduoc0603.commercehub.hello.application.GreetingService;
 import io.github.hoangduoc0603.commercehub.hello.domain.Greeting;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -23,8 +26,9 @@ public class GreetingController {
         this.greetings = greetings;
     }
 
+    // @Valid: Spring kiểm ràng buộc của CreateGreetingRequest trước khi gọi method; sai thì 400, không chạm DB.
     @PostMapping
-    ResponseEntity<GreetingResponse> create(@RequestBody CreateGreetingRequest request) {
+    ResponseEntity<GreetingResponse> create(@Valid @RequestBody CreateGreetingRequest request) {
         Greeting greeting = greetings.create(request.name());
         URI location = UriComponentsBuilder.fromPath("/v1/greetings/{id}")
                 .buildAndExpand(greeting.id())
@@ -40,7 +44,10 @@ public class GreetingController {
     }
 
     // DTO là record lồng trong controller: chỉ lớp web dùng. Tên field là tên trong JSON, đổi là đổi API.
-    record CreateGreetingRequest(String name) {
+    // Cùng luật với CHECK (char_length(name) BETWEEN 1 AND 50) của bảng greeting. Ràng buộc trong DB vẫn giữ làm lớp
+    // chặn cuối. @NotNull riêng vì @Size coi null là hợp lệ. Không @NotBlank: spec ghi "1–50 ký tự", DB nhận "   ".
+    // @Size đếm đơn vị UTF-16 nên với emoji thì chặt hơn char_length; lệch theo hướng an toàn.
+    record CreateGreetingRequest(@NotNull @Size(min = 1, max = 50) String name) {
     }
 
     record GreetingResponse(UUID id, String name, Instant createdAt) {
