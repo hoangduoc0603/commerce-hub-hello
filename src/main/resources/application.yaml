@@ -2,6 +2,28 @@ spring:
   application:
     name: hello
 
+  # Migration (G0-26). Chuẩn: docs/standards/db-migration.md (repo docs).
+  flyway:
+    # Runtime KHÔNG migrate: pod chỉ có credential hello_app (không có quyền DDL). Chỉ profile migrate (Job PreSync,
+    # ticket 27) và test bật Flyway. Mặc định tắt nên quên cấu hình thì không có gì xảy ra; nếu mặc định bật mà quên
+    # tắt, Flyway sẽ thử migrate bằng hello_app.
+    enabled: false
+    # Mặc định của Boot là false: file đặt sai tên bị bỏ qua mà không báo gì. Bật để sai tên là lỗi.
+    validate-migration-naming: true
+    # Mặc định false: gõ sai đường dẫn thư mục migration thì Flyway không chạy gì mà vẫn báo thành công.
+    fail-on-missing-locations: true
+    postgresql:
+      # Dùng advisory lock cấp session thay cho lock trong transaction: lock trong transaction gây lỗi với
+      # CREATE INDEX CONCURRENTLY. Lock cấp session là lý do Flyway phải nối thẳng PostgreSQL, không qua PgBouncer.
+      transactional-lock: false
+    # Chạy trên mỗi kết nối Flyway mở, trước mọi migration. Boot nối các phần tử thành MỘT chuỗi SQL, nên mỗi câu
+    # phải tự kết thúc bằng dấu ";" (đã thử: thiếu thì lỗi "syntax error at or near SET").
+    init-sqls:
+      # Chờ khóa tối đa 5 s rồi lỗi, thay vì chờ mãi và chặn mọi truy vấn xếp hàng phía sau.
+      - SET lock_timeout = '5s';
+      # Object mới thuộc hello_owner (NOLOGIN), không thuộc hello_migrator (đăng nhập được).
+      - SET ROLE hello_owner;
+
   threads:
     virtual:
       enabled: true

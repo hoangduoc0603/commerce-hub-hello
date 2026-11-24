@@ -1,0 +1,11 @@
+# Chỉ có trên classpath test (cả ./gradlew test lẫn bootTestRun ở bước 8). Boot đọc classpath:/config/application.yaml
+# SAU classpath:/application.yaml, nên giá trị ở đây đè giá trị trong src/main.
+#
+# Vì sao không đặt trong DynamicPropertyRegistrar như url/user/password: Boot quyết định có bật FlywayAutoConfiguration
+# hay không (điều kiện spring.flyway.enabled) TRƯỚC khi các registrar chạy. Đã thử: đặt ở registrar thì Flyway
+# không chạy, cũng không có dòng log nào báo.
+#
+# Không đặt tên src/test/resources/application.yaml: file cùng tên che mất application.yaml của src/main.
+spring:
+  flyway:
+    enabled: true

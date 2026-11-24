@@ -12,8 +12,10 @@ import org.testcontainers.utility.MountableFile;
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
 
-    // Mật khẩu test, khớp hello-roles.sql và userlist.txt. Bước 3 thêm MIGRATOR_PASSWORD khi Flyway cần.
+    // Mật khẩu test, khớp hello-roles.sql và userlist.txt.
     static final String APP_PASSWORD = "hello_app_test";
+    // Khớp hello-roles.sql. Chỉ Flyway dùng, nối thẳng postgres, không đi qua PgBouncer.
+    static final String MIGRATOR_PASSWORD = "hello_migrator_test";
 
     // Cùng major.minor với lab: gitops/infra/pg-main/cluster.yaml (imageName postgresql:18.7-...).
     // Nâng PostgreSQL trên lab thì đổi tag này cùng lúc. Image chính thức "postgres", không phải image CNPG:
@@ -71,15 +73,22 @@ class TestcontainersConfiguration {
     // Không dùng @ServiceConnection: nó sẽ cho DataSource đăng nhập bằng user "test", là superuser, nên
     // bỏ qua mọi kiểm quyền. Test sẽ xanh cả ở những chỗ mà lab báo "permission denied".
     // DataSource (runtime) đi qua PgBouncer bằng hello_app, giống pod trên lab.
-    // Bước 3 thêm spring.flyway.* nối thẳng postgres bằng hello_migrator.
+    // Flyway nối thẳng postgres bằng hello_migrator, giống Job PreSync trên lab (ticket 27).
+    // spring.flyway.enabled=true nằm ở src/test/resources/config/application.yaml, không ở đây (lý do ghi ở file đó).
     @Bean
-    DynamicPropertyRegistrar databaseProperties(GenericContainer<?> pgbouncer) {
+    DynamicPropertyRegistrar databaseProperties(PostgreSQLContainer postgres, GenericContainer<?> pgbouncer) {
         return registry -> {
             // getHost() và getMappedPort() đọc lúc Spring cần giá trị, khi container đã chạy.
             registry.add("spring.datasource.url", () -> "jdbc:postgresql://%s:%d/hello"
                     .formatted(pgbouncer.getHost(), pgbouncer.getMappedPort(PGBOUNCER_PORT)));
             registry.add("spring.datasource.username", () -> "hello_app");
             registry.add("spring.datasource.password", () -> APP_PASSWORD);
+            // Flyway có kết nối riêng: khi spring.flyway.url có giá trị, Boot tạo DataSource riêng cho Flyway,
+            // không dùng DataSource của runtime. Nối thẳng postgres vì advisory lock cấp session và SET ROLE cần một
+            // session cố định (PgBouncer transaction không giữ session). Trên lab: pg-main-rw (ticket 27).
+            registry.add("spring.flyway.url", postgres::getJdbcUrl);
+            registry.add("spring.flyway.user", () -> "hello_migrator");
+            registry.add("spring.flyway.password", () -> MIGRATOR_PASSWORD);
         };
     }
 }
