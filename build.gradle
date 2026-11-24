@@ -20,9 +20,18 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // JDBC (G0-26): HikariCP, JdbcClient, JdbcTemplate, transaction. Không JPA: hello dùng JdbcClient (spec G0).
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Driver pgjdbc; runtimeOnly vì code chỉ nói với DataSource, không import org.postgresql.*.
+    runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    // Container là @Bean, Spring Boot quản vòng đời; dùng lại được cho bootTestRun (bước 8).
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    // Testcontainers 2.x (2.0.5 theo BOM Boot 4.1.2): artifact đổi tên thành testcontainers-<module>.
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

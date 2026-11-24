@@ -4,11 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 // RANDOM_PORT: chạy Tomcat thật. Khi management.server.port khác cổng chính, Spring Boot test tự đổi
 // cả cổng quản trị sang cổng ngẫu nhiên, nên test không đụng app đang bootRun ở 8080/8081.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestcontainersConfiguration.class)
 class ActuatorPortTests {
 
     @LocalServerPort       // cổng chính (vai trò 8080)
