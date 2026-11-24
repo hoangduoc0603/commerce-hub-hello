@@ -24,6 +24,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     // JDBC (G0-26): HikariCP, JdbcClient, JdbcTemplate, transaction. Không JPA: hello dùng JdbcClient (spec G0).
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    // Bean Validation (G0-26): Hibernate Validator kiểm DTO có @Valid trước khi vào controller.
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     // Flyway 10+ tách hỗ trợ từng loại DB ra module riêng; thiếu module này thì Flyway báo không hỗ trợ PostgreSQL.
     implementation 'org.flywaydb:flyway-database-postgresql'
@@ -38,6 +40,7 @@ dependencies {
     // Test starter đi cùng starter (quy ước Boot 4).
     testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     // Container là @Bean, Spring Boot quản vòng đời; dùng lại được cho bootTestRun (bước 8).
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
