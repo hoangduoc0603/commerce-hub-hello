@@ -28,6 +28,11 @@ dependencies {
     // Driver pgjdbc; runtimeOnly vì code chỉ nói với DataSource, không import org.postgresql.*.
     // Flyway 10+ tách hỗ trợ từng loại DB ra module riêng; thiếu module này thì Flyway báo không hỗ trợ PostgreSQL.
     implementation 'org.flywaydb:flyway-database-postgresql'
+
+    // UUIDv7 (G0-26, quyết định Q2 trong ticket). Không có trong BOM của Boot 4.1.2 (đã kiểm), nên ghi version.
+    // Dependabot nâng được vì version nằm ngay trong build.gradle.
+    implementation 'com.fasterxml.uuid:java-uuid-generator:5.2.0'
+
     runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     // Test starter đi cùng starter (quy ước Boot 4).
