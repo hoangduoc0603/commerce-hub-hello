@@ -15,7 +15,7 @@ import java.util.UUID;
 
 @Repository
 public class JdbcGreetingRepository implements GreetingRepository {
-    JdbcClient jdbc;
+    private final JdbcClient jdbc;
 
     public JdbcGreetingRepository(JdbcClient jdbc) {
         this.jdbc = jdbc;

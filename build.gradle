@@ -25,7 +25,6 @@ dependencies {
     // JDBC (G0-26): HikariCP, JdbcClient, JdbcTemplate, transaction. Không JPA: hello dùng JdbcClient (spec G0).
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-    // Driver pgjdbc; runtimeOnly vì code chỉ nói với DataSource, không import org.postgresql.*.
     // Flyway 10+ tách hỗ trợ từng loại DB ra module riêng; thiếu module này thì Flyway báo không hỗ trợ PostgreSQL.
     implementation 'org.flywaydb:flyway-database-postgresql'
 
@@ -33,6 +32,7 @@ dependencies {
     // Dependabot nâng được vì version nằm ngay trong build.gradle.
     implementation 'com.fasterxml.uuid:java-uuid-generator:5.2.0'
 
+    // Driver pgjdbc; runtimeOnly vì code chỉ nói với DataSource, không import org.postgresql.*.
     runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
     // Test starter đi cùng starter (quy ước Boot 4).

@@ -1,4 +1,4 @@
-package io.github.hoangduoc0603.commercehub.hello.adapter.in;
+package io.github.hoangduoc0603.commercehub.hello.adapter.in.web;
 
 import io.github.hoangduoc0603.commercehub.hello.application.GreetingService;
 import io.github.hoangduoc0603.commercehub.hello.domain.Greeting;
