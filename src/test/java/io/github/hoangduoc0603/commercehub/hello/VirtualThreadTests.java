@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
@@ -15,6 +16,7 @@ import org.springframework.web.client.RestClient;
 // MOCK mặc định (MockMvc) xử lý request ngay trên thread của JUnit, không qua executor của Tomcat.
 // Với MOCK, test này không bao giờ đo được thứ cần đo.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestcontainersConfiguration.class)
 class VirtualThreadTests {
 
     @LocalServerPort   // cổng Tomcat thật đang nghe, Spring tiêm vào sau khi server lên
