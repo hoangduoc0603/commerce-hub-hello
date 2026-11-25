@@ -28,10 +28,17 @@ COPY --from=extract /builder/extracted/application/ ./
 
 # AOT cache (JEP 514/515): chạy app một lần lúc build, ghi class đã nạp và liên kết vào app.aot.
 # Chạy trong RUNTIME stage: cache chỉ dùng được với đúng jar, JDK, OS và kiến trúc lúc train.
-# spring.context.exit=onRefresh: app tự thoát sau khi context khởi tạo xong. hello không có DB,
-# Kafka ở G0; ticket 26 thêm DB thì phải tắt kết nối ngoài cho riêng lệnh này (container-image.md).
+# spring.context.exit=onRefresh: app tự thoát sau khi context khởi tạo xong.
+# Training run không được nối DB (container-image.md, mục "AOT cache"; Spring Boot how-to "AOT Cache": cấu hình riêng
+# cho training run để tránh tương tác với dịch vụ ngoài). Từ G0-26, bean JdbcClient cần DataSource có URL, thiếu thì
+# context lỗi "Failed to determine a suitable driver class". URL giả chỉ cho lệnh này: Hikari chỉ mở kết nối ở lần
+# getConnection() đầu, mà refresh không gọi lần nào (Flyway tắt mặc định). Host .invalid (RFC 6761) không bao giờ
+# phân giải được, nên nếu sau này có bean nối DB lúc khởi động, build đỏ ngay thay vì train nhầm vào một DB thật.
+# Đã đo 2026-11-25: image chạy -XX:AOTMode=on ở profile migrate và runtime, khởi động 0,6 s (không cache 1,3 s).
 # Chạy trước USER: còn là root nên ghi được vào /application; app.aot thuộc root, user 10001 chỉ đọc.
-RUN java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh -jar application.jar
+RUN java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh \
+        -Dspring.datasource.url=jdbc:postgresql://aot-training.invalid:5432/hello \
+        -jar application.jar
 
 # Nhãn tĩnh (G0-23 Q8). revision, version, created do CI đặt lúc build (labels: của build-push-action trong
 # platform/.github/workflows/container-image.yml), vì chỉ CI biết giá trị. Image build ở máy thiếu revision
