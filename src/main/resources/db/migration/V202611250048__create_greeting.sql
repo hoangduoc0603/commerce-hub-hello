@@ -23,3 +23,4 @@ CREATE TABLE greeting (
     name       text        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 50),
     created_at timestamptz NOT NULL DEFAULT now()
 );
+-- thử migration-guard: sửa migration đã merge
