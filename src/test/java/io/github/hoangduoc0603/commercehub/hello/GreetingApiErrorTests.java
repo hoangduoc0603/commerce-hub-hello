@@ -40,6 +40,9 @@ class GreetingApiErrorTests {
     }
 
     // Mỗi phần tử là một body POST phải bị từ chối. "not json": JSON hỏng thì Jackson ném lỗi, Spring trả 400.
+    // Hai body cuối là escape JSON (\\u trong text block giữ nguyên dấu \ cho Jackson giải mã):
+    // NUL thì PostgreSQL text không lưu được, surrogate lẻ thì UTF-8 không mã hóa được. Thiếu @Pattern thì body có NUL
+    // đi xuống DB và thành 500 (đã thấy khi review 2026-11-25).
     static Stream<String> invalidBodies() {
         return Stream.of(
                 "{}",
@@ -49,7 +52,18 @@ class GreetingApiErrorTests {
                 {"name": ""}""",
                 """
                 {"name": "%s"}""".formatted("a".repeat(51)),
-                "not json");
+                "not json",
+                """
+                {"name": "a\\u0000b"}""",
+                """
+                {"name": "a\\ud800b"}""");
+    }
+
+    // Emoji là một cặp surrogate hợp lệ (2 đơn vị UTF-16): phải được nhận, để @Pattern không chặn nhầm.
+    @Test
+    void emojiNameIsAccepted() {
+        assertThat(post("""
+                {"name": "chào \\ud83d\\udc4b"}""")).hasStatus(HttpStatus.CREATED);
     }
 
     @ParameterizedTest
