@@ -4,6 +4,7 @@ import io.github.hoangduoc0603.commercehub.hello.application.GreetingService;
 import io.github.hoangduoc0603.commercehub.hello.domain.Greeting;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -47,7 +48,11 @@ public class GreetingController {
     // Cùng luật với CHECK (char_length(name) BETWEEN 1 AND 50) của bảng greeting. Ràng buộc trong DB vẫn giữ làm lớp
     // chặn cuối. @NotNull riêng vì @Size coi null là hợp lệ. Không @NotBlank: spec ghi "1–50 ký tự", DB nhận "   ".
     // @Size đếm đơn vị UTF-16 nên với emoji thì chặt hơn char_length; lệch theo hướng an toàn.
-    record CreateGreetingRequest(@NotNull @Size(min = 1, max = 50) String name) {
+    // @Pattern chặn hai thứ JSON hợp lệ mà DB không lưu đúng được: ký tự NUL (PostgreSQL text từ chối 0x00, thiếu chặn
+    // thì thành 500) và surrogate lẻ (UTF-8 không mã hóa được, driver lưu thành "?" mà không báo lỗi). \p{Cs} chỉ khớp
+    // surrogate lẻ: regex Java coi một cặp surrogate (emoji) là một code point, nên emoji vẫn được nhận.
+    record CreateGreetingRequest(
+            @NotNull @Size(min = 1, max = 50) @Pattern(regexp = "[^\\x00\\p{Cs}]*") String name) {
     }
 
     record GreetingResponse(UUID id, String name, Instant createdAt) {
