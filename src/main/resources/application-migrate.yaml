@@ -1,0 +1,23 @@
+# Profile migrate (G0-26): chạy Flyway rồi thoát. Job PreSync ở ticket 27 chạy chính image này với
+# SPRING_PROFILES_ACTIVE=migrate và SPRING_FLYWAY_URL/USER/PASSWORD (hello_migrator, nối thẳng pg-main-rw).
+# Chuẩn: docs/standards/db-migration.md, mục "Chạy migration ở đâu".
+#
+# Thoát thế nào: không web server thì không còn thread non-daemon nào giữ JVM. Flyway chạy trong lúc khởi động
+# context; run() xong thì main kết thúc, JVM thoát mã 0. Flyway lỗi thì run() ném exception, JVM thoát mã 1 và Job
+# Failed. Đã đo 2026-11-25: up to date → exit 0 sau ~2 s; sai mật khẩu → exit 1.
+# G1: thêm Kafka listener hay scheduler thì phải tắt chúng trong profile này. Chúng tạo thread non-daemon, JVM không
+# thoát, Job treo tới activeDeadlineSeconds.
+spring:
+  main:
+    # Không Tomcat, không cổng 8080/8081.
+    web-application-type: none
+  flyway:
+    # Đè enabled: false của application.yaml.
+    enabled: true
+  # Bean JdbcClient của runtime vẫn được tạo (repository cần nó), nên DataSource phải có URL. Trỏ về chính kết nối của
+  # Flyway để Job chỉ cần một bộ credential. Hikari chỉ mở kết nối ở lần getConnection() đầu, mà profile này không
+  # xử lý request nào, nên DataSource này không bao giờ mở kết nối.
+  datasource:
+    url: ${spring.flyway.url}
+    username: ${spring.flyway.user}
+    password: ${spring.flyway.password}
