@@ -38,10 +38,48 @@ jobs:
     with:
       image: commerce-hub-hello
 
+  # Chặn sửa, xóa, đổi tên migration đã merge (docs/standards/db-migration.md, mục "Bất biến sau khi merge").
+  # Flyway trên lab cũng phát hiện checksum lệch, nhưng chỉ khi Job PreSync chạy: lúc đó code đã ở main và sync kẹt.
+  # Test không bắt được vì luôn migrate trên DB trống. Chạy cả push vào main vì ruleset không bắt status check
+  # (PR đỏ vẫn merge được), nên deploy cũng needs job này (quyết định Q3 của G0-26).
+  migration-guard:
+    # schedule và workflow_dispatch không có khoảng commit để so. Job bị bỏ qua thì deploy cũng bị bỏ qua, nhưng
+    # deploy vốn chỉ chạy khi push.
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Toàn bộ lịch sử: cần commit base (PR) hoặc before (push) để so.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Migration đã merge không bị sửa, xóa hay đổi tên
+        # Giá trị từ sự kiện đi qua env, không chèn thẳng ${{ }} vào script (GitHub, "Security hardening": script
+        # injection). SHA thì vô hại, nhưng giữ một thói quen cho mọi chỗ.
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # Ba chấm: so với điểm rẽ nhánh, để migration mới trên base sau lúc rẽ không bị tính là "xóa".
+          # Shell mặc định là bash -e -o pipefail: git diff lỗi (mất commit base) thì job đỏ, không cho qua.
+          changed=$(git diff --name-only --diff-filter=MDR "$BASE...$HEAD" -- src/main/resources/db/migration)
+          if [ -n "$changed" ]; then
+            while IFS= read -r f; do
+              echo "::error file=$f::Migration đã merge không được sửa, xóa hay đổi tên. Thêm migration mới thay vào đó."
+            done <<< "$changed"
+            exit 1
+          fi
+          echo "Không migration đã merge nào bị đụng tới ($BASE...$HEAD)."
+
   # Deploy lên lab qua GitOps: ghi digest vừa push vào repo gitops, Argo CD trên lab tự kéo về.
   # CI không có token Argo CD, không gọi kubectl (ci-cd.md, "Deploy qua GitOps"). Ticket G0-24.
   deploy:
-    needs: ci
+    # migration-guard: chặn deploy khi PR đỏ vẫn được merge (ruleset không bắt status check).
+    needs: [ci, migration-guard]
     # Chỉ push vào nhánh mặc định VÀ đã có image. digest rỗng khi container-image.yml không push (PR, schedule,
     # workflow_dispatch). Hai điều kiện trùng ý, giữ cả hai để đọc là hiểu (ci-cd.md, "Repo public": job cập nhật
     # gitops chỉ chạy khi github.event_name == 'push' trên nhánh mặc định).
