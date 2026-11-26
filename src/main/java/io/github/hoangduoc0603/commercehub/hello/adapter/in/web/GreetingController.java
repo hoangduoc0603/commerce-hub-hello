@@ -64,7 +64,10 @@ public class GreetingController {
     // thì thành 500) và surrogate lẻ (UTF-8 không mã hóa được, driver lưu thành "?" mà không báo lỗi). \p{Cs} chỉ khớp
     // surrogate lẻ: regex Java coi một cặp surrogate (emoji) là một code point, nên emoji vẫn được nhận.
     record CreateGreetingRequest(
-            @NotNull @Size(min = 1, max = 50) @Pattern(regexp = "[^\\x00\\p{Cs}]*") String name) {
+            // message tường minh: mặc định của @Pattern là 'must match "<regex>"', lộ regex nội bộ ra client.
+            @NotNull @Size(min = 1, max = 50)
+            @Pattern(regexp = "[^\\x00\\p{Cs}]*", message = "must not contain NUL or unpaired surrogate characters")
+            String name) {
     }
 
     record GreetingResponse(UUID id, String name, Instant createdAt) {
