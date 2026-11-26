@@ -36,7 +36,12 @@ COPY --from=extract /builder/extracted/application/ ./
 # phân giải được, nên nếu sau này có bean nối DB lúc khởi động, build đỏ ngay thay vì train nhầm vào một DB thật.
 # Đã đo 2026-11-25: image chạy -XX:AOTMode=on ở profile migrate và runtime, khởi động 0,6 s (không cache 1,3 s).
 # Chạy trước USER: còn là root nên ghi được vào /application; app.aot thuộc root, user 10001 chỉ đọc.
-RUN java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh \
+# Gỡ mọi biến OTEL_* trước khi train (G0-28): trên runner CI, BuildKit gắn biến OTEL_* trỏ tới socket trace của nó
+# (unix:///dev/otel-grpc.sock) vào bước RUN; Boot 4 đọc biến OTEL_* thành property, nên tạo exporter gRPC và lỗi
+# "Invalid endpoint", build đỏ. Tái hiện trên máy 2026-11-26: OTEL_TRACES_EXPORTER=otlp cộng endpoint đó và
+# protocol grpc thì app không khởi động, kể cả khi có management.tracing.export.otlp.enabled=false ở yaml hay -D.
+RUN for v in $(env | grep -o '^OTEL_[A-Za-z0-9_]*'); do unset "$v"; done; \
+    java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh \
         -Dspring.datasource.url=jdbc:postgresql://aot-training.invalid:5432/hello \
         -jar application.jar
 
