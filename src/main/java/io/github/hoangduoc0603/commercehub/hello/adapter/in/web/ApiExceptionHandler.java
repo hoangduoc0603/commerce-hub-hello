@@ -6,13 +6,17 @@ import java.util.List;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -24,6 +28,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 // Package-private: Spring vẫn quét được, code ngoài adapter.in.web không cần gọi tới.
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     private final Tracer tracer;
 
@@ -87,6 +93,22 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             }
         }
         return super.createResponseEntity(body, headers, statusCode, request);
+    }
+
+    // Lưới cuối cho exception không ai xử lý (bug, DB sập...). Spring chọn handler có kiểu gần nhất, nên các
+    // exception đã có handler trong ResponseEntityExceptionHandler (405, 400...) vẫn đi đường cũ.
+    // Thiếu handler này thì exception thoát khỏi DispatcherServlet, rơi xuống /error của Boot: JSON khác dạng,
+    // không traceId. Khi bật method security (@PreAuthorize) thì AccessDeniedException cũng rơi vào đây thành 500:
+    // phải thêm handler riêng (rest-api.md).
+    @ExceptionHandler(Exception.class)
+    @Nullable ResponseEntity<Object> handleUnexpected(Exception ex, WebRequest request) {
+        // ERROR kèm stack trace: đây là bug cần người xem. Dòng log mang [traceId-spanId] trùng traceId của body.
+        log.error("Unhandled exception", ex);
+        // detail cố định, không lấy ex.getMessage(): message có thể chứa chuỗi kết nối, SQL hay PII.
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
+        // Qua handleExceptionInternal → createResponseEntity như mọi lỗi khác, để có traceId.
+        // @Nullable vì handleExceptionInternal trả null khi response đã commit.
+        return handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
     }
 
     // "items[0].qty" thành "#/items/0/qty" (RFC 6901). Đúng khi tên field record DTO trùng tên JSON: không đổi tên
