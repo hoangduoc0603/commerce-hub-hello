@@ -6,7 +6,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -39,9 +42,18 @@ public class GreetingController {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<GreetingResponse> get(@PathVariable UUID id) {
-        // ResponseEntity.of: có giá trị thì 200, Optional rỗng thì 404 (thân rỗng; Problem Details ở ticket 28).
-        return ResponseEntity.of(greetings.get(id).map(GreetingResponse::from));
+    GreetingResponse get(@PathVariable UUID id) {
+        // Trả thẳng DTO: @RestController mặc định 200. Không có thì ném ErrorResponseException: lớp này mang sẵn
+        // ProblemDetail, và ApiExceptionHandler (kế thừa ResponseEntityExceptionHandler) bắt mọi ErrorResponse.
+        // Lỗi HTTP chung, type about:blank, không code nghiệp vụ (rest-api.md). Ném ở adapter web, không ở
+        // GreetingService: "không có thì 404" là quyết định của kênh HTTP. Tham số thứ ba (cause) là null.
+        return greetings.get(id)
+                .map(GreetingResponse::from)
+                .orElseThrow(() -> new ErrorResponseException(
+                        HttpStatus.NOT_FOUND,
+                        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Greeting not found"),
+                        null
+                ));
     }
 
     // DTO là record lồng trong controller: chỉ lớp web dùng. Tên field là tên trong JSON, đổi là đổi API.

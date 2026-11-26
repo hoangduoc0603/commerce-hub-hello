@@ -58,6 +58,16 @@ class ProblemDetailsTests {
         assertThat(result).bodyJson().extractingPath("$.detail").asString().doesNotContain("khong-phai-uuid");
     }
 
+    @Test
+    void unknownGreetingReturns404Problem() {
+        // UUID ngẫu nhiên: gần như chắc chắn không có trong bảng. Route khớp, controller chạy, không thấy dòng nào.
+        MvcTestResult result = mvc.get().uri("/v1/greetings/{id}", UUID.randomUUID()).exchange();
+        assertGenericProblem(result, HttpStatus.NOT_FOUND);
+        // Khác 404 đường dẫn lạ ("No static resource ..."): người đọc log biết route có, chỉ thiếu tài nguyên.
+        // Client không được parse detail (RFC 9457 §3.1.4); test kiểm để câu chữ không đổi mà không ai hay.
+        assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("Greeting not found");
+    }
+
     // Dạng chung của lỗi HTTP: type about:blank, title là reason phrase, status trùng status HTTP.
     private static void assertGenericProblem(MvcTestResult result, HttpStatus status) {
         assertThat(result)
