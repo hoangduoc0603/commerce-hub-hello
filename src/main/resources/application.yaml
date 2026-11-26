@@ -24,6 +24,13 @@ spring:
       # Object mới thuộc hello_owner (NOLOGIN), không thuộc hello_migrator (đăng nhập được).
       - SET ROLE hello_owner;
 
+  # Problem Details luôn tiếng Anh (docs/standards/rest-api.md). Mặc định Spring lấy locale từ Accept-Language và
+  # Hibernate Validator dịch message theo đó: đã thấy "Größe muss zwischen 1 und 50 sein" khi gửi
+  # Accept-Language: de. fixed: bỏ qua header, mọi request dùng locale en.
+  web:
+    locale: en
+    locale-resolver: fixed
+
   threads:
     virtual:
       enabled: true

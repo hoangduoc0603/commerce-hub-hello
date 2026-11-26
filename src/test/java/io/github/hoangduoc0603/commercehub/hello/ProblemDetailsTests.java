@@ -3,8 +3,12 @@ package io.github.hoangduoc0603.commercehub.hello;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -66,6 +70,38 @@ class ProblemDetailsTests {
         // Khác 404 đường dẫn lạ ("No static resource ..."): người đọc log biết route có, chỉ thiếu tài nguyên.
         // Client không được parse detail (RFC 9457 §3.1.4); test kiểm để câu chữ không đổi mà không ai hay.
         assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("Greeting not found");
+    }
+
+    // Mỗi case: body vi phạm đúng một constraint, và message mong đợi (tiếng Anh, xem rest-api.md).
+    // Case cuối: \\u0000 trong text block giữ nguyên dấu \ để Jackson giải mã thành ký tự NUL.
+    static Stream<Arguments> invalidNames() {
+        return Stream.of(
+                Arguments.of("{}", "must not be null"),
+                Arguments.of("""
+                        {"name": ""}""", "size must be between 1 and 50"),
+                Arguments.of("""
+                        {"name": "%s"}""".formatted("a".repeat(51)), "size must be between 1 and 50"),
+                Arguments.of("""
+                        {"name": "a\\u0000b"}""", "must not contain NUL or unpaired surrogate characters"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidNames")
+    void invalidNameReturns400WithErrors(String body, String expectedDetail) {
+        MvcTestResult result = mvc.post().uri("/v1/greetings")
+                .contentType(MediaType.APPLICATION_JSON)
+                // Trình duyệt tiếng Đức: message vẫn phải là tiếng Anh (locale khóa ở application.yaml).
+                .header("Accept-Language", "de")
+                .content(body)
+                .exchange();
+        assertGenericProblem(result, HttpStatus.BAD_REQUEST);
+        // Mỗi body chỉ vi phạm một constraint nên có đúng một phần tử.
+        assertThat(result).bodyJson().extractingPath("$.errors.length()").isEqualTo(1);
+        // JSON Pointer dạng fragment (RFC 9457 §3, RFC 6901 §6): trỏ tới field "name" ở gốc của body.
+        assertThat(result).bodyJson().extractingPath("$.errors[0].pointer").isEqualTo("#/name");
+        assertThat(result).bodyJson().extractingPath("$.errors[0].detail").isEqualTo(expectedDetail);
+        // Không lặp lại giá trị đã gửi (N11): không có rejectedValue trong body.
+        assertThat(result).bodyText().doesNotContain("aaaaaaaaaa");
     }
 
     // Dạng chung của lỗi HTTP: type about:blank, title là reason phrase, status trùng status HTTP.
