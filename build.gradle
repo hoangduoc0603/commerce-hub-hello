@@ -27,6 +27,11 @@ dependencies {
     // Bean Validation (G0-26): Hibernate Validator kiểm DTO có @Valid trước khi vào controller.
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+    // Micrometer Tracing + bridge OTel (G0-28): Problem Details lấy traceId từ span hiện tại. G0-30 bật gửi span
+    // tới Collector. Kéo theo micrometer-registry-otlp: tắt trong application.yaml (metric đi đường Prometheus).
+    implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+
     // Flyway 10+ tách hỗ trợ từng loại DB ra module riêng; thiếu module này thì Flyway báo không hỗ trợ PostgreSQL.
     implementation 'org.flywaydb:flyway-database-postgresql'
 

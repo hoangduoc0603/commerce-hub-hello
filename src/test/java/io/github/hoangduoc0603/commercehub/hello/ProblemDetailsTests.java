@@ -104,6 +104,17 @@ class ProblemDetailsTests {
         assertThat(result).bodyText().doesNotContain("aaaaaaaaaa");
     }
 
+    @Test
+    void traceIdComesFromIncomingTraceparent() {
+        // Ví dụ trong spec W3C Trace Context: version 00, trace ID, parent span ID, flags 01 (sampled).
+        // Client (sau này là BFF seller-web) gửi traceparent thì lỗi phải mang đúng trace đó, không mở trace mới.
+        MvcTestResult result = mvc.get().uri("/v1/greetings/{id}", UUID.randomUUID())
+                .header("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+                .exchange();
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).bodyJson().extractingPath("$.traceId").isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
+    }
+
     // Dạng chung của lỗi HTTP: type about:blank, title là reason phrase, status trùng status HTTP.
     private static void assertGenericProblem(MvcTestResult result, HttpStatus status) {
         assertThat(result)
@@ -113,5 +124,7 @@ class ProblemDetailsTests {
         assertThat(result).bodyJson().doesNotHavePath("$.type");
         assertThat(result).bodyJson().extractingPath("$.title").isEqualTo(status.getReasonPhrase());
         assertThat(result).bodyJson().extractingPath("$.status").isEqualTo(status.value());
+        // Mọi lỗi có traceId: trace ID W3C (32 hex thường) của request, để nối lỗi với log và trace (rest-api.md).
+        assertThat(result).bodyJson().extractingPath("$.traceId").asString().matches("[0-9a-f]{32}");
     }
 }

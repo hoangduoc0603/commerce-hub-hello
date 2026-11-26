@@ -36,6 +36,18 @@ spring:
       enabled: true
 
 management:
+  tracing:
+    export:
+      otlp:
+        # Không gửi span tới Collector cho tới G0-30. KHÔNG dùng management.tracing.export.enabled: Boot 4.1 ghi
+        # property đó là "export and propagate"; đặt false thì traceparent gửi vào bị bỏ qua (đã đo, G0-28).
+        enabled: false
+  otlp:
+    metrics:
+      export:
+        # Starter kéo theo OtlpMeterRegistry, đẩy metric tới localhost:4318 mỗi phút và log ConnectException.
+        # Metric đi đường Prometheus scrape (observability.md), nên tắt hẳn, không chỉ tới G0-30.
+        enabled: false
   server:
     port: 8081
   endpoint:

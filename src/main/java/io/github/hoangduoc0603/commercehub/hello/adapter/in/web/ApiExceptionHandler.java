@@ -3,6 +3,9 @@ package io.github.hoangduoc0603.commercehub.hello.adapter.in.web;
 import java.util.Comparator;
 import java.util.List;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -21,6 +24,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 // Package-private: Spring vẫn quét được, code ngoài adapter.in.web không cần gọi tới.
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private final Tracer tracer;
+
+    // Một constructor: Spring tự tiêm. Tracer do Boot tạo từ starter OTel (bridge Micrometer → OpenTelemetry SDK).
+    ApiExceptionHandler(Tracer tracer) {
+        this.tracer = tracer;
+    }
 
     // Mặc định detail là "Failed to convert 'id' with value: '<giá trị>'": lặp lại thứ client gửi. Ở G1 giá trị đó
     // có thể là PII (N11), và body lỗi có thể bị log ở BFF. Chỉ nêu tên tham số và kiểu mong đợi.
@@ -60,6 +70,23 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         // setProperty: ProblemDetailJacksonMixin đưa map properties lên cấp đầu của JSON (đã đo, rest-api.md).
         body.setProperty("errors", errors);
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    // Mọi đường xử lý của ResponseEntityExceptionHandler (exception có sẵn, ErrorResponseException, các override
+    // trong class này) đều kết thúc ở đây, nên gắn traceId một lần là phủ mọi lỗi (rest-api.md).
+    @Override
+    protected ResponseEntity<Object> createResponseEntity(@Nullable Object body, HttpHeaders headers,
+                                                          HttpStatusCode statusCode, WebRequest request) {
+        // body có thể null (response đã commit) hoặc không phải ProblemDetail nếu sau này có handler trả kiểu khác.
+        if (body instanceof ProblemDetail problem) {
+            // Span của request do ServerHttpObservationFilter mở; advice chạy bên trong filter nên span còn hiện hành.
+            // null khi không có observation: bỏ qua thay vì ném NPE trong chính handler lỗi.
+            Span span = tracer.currentSpan();
+            if (span != null) {
+                problem.setProperty("traceId", span.context().traceId());
+            }
+        }
+        return super.createResponseEntity(body, headers, statusCode, request);
     }
 
     // "items[0].qty" thành "#/items/0/qty" (RFC 6901). Đúng khi tên field record DTO trùng tên JSON: không đổi tên
