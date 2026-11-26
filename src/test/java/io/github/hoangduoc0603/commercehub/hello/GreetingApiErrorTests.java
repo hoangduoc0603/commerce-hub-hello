@@ -2,7 +2,6 @@ package io.github.hoangduoc0603.commercehub.hello;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
-// Phần lỗi của tiêu chí nghiệm thu 1 (G0-26). Chỉ kiểm status: dạng body (Problem Details, errors[]) là ticket 28.
+// Phần lỗi của tiêu chí nghiệm thu 1 (G0-26): body POST nào bị từ chối, giá trị biên nào được nhận. Chỉ kiểm status.
+// Dạng body lỗi (Problem Details, traceId, errors[]) nằm ở ProblemDetailsTests (G0-28).
 // Cùng annotation với GreetingApiTests nên dùng chung context và container.
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -26,18 +26,6 @@ class GreetingApiErrorTests {
 
     @Autowired
     MockMvcTester mvc;
-
-    @Test
-    void unknownIdReturns404() {
-        // UUID ngẫu nhiên: gần như chắc chắn không có trong bảng.
-        assertThat(mvc.get().uri("/v1/greetings/{id}", UUID.randomUUID())).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void malformedIdReturns400() {
-        // Spring không đổi được "not-a-uuid" sang UUID nên trả 400, không vào tới controller.
-        assertThat(mvc.get().uri("/v1/greetings/not-a-uuid")).hasStatus(HttpStatus.BAD_REQUEST);
-    }
 
     // Mỗi phần tử là một body POST phải bị từ chối. "not json": JSON hỏng thì Jackson ném lỗi, Spring trả 400.
     // Hai body cuối là escape JSON (\\u trong text block giữ nguyên dấu \ cho Jackson giải mã):
