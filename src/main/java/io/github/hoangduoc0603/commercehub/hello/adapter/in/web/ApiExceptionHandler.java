@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.server.resource.BearerTokenError;
@@ -100,7 +101,7 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     // 401 từ filter của Spring Security (qua entry point trong SecurityConfig, G0-29). Spring chọn handler có kiểu gần
     // nhất, nên AuthenticationException tới đây chứ không rơi vào handleUnexpected. Lỗi tải JWKS
-    // (AuthenticationServiceException) không tới đây: Security ném lại trước entry point (xem bước 6 ticket).
+    // (AuthenticationServiceException) có handler riêng bên dưới (503).
     @ExceptionHandler(AuthenticationException.class)
     @Nullable ResponseEntity<Object> handleAuthentication(AuthenticationException ex, WebRequest request) {
         // Không có token (InsufficientAuthenticationException): RFC 6750 §3 chỉ "Bearer", không mã lỗi.
@@ -122,6 +123,22 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         headers.set(HttpHeaders.WWW_AUTHENTICATE, challenge);
         // Không log: lỗi 4xx của client (rest-api.md). Qua handleExceptionInternal để createResponseEntity gắn traceId.
         return handleExceptionInternal(ex, ProblemDetail.forStatusAndDetail(status, detail), headers, status, request);
+    }
+
+    // Không KIỂM được token vì lỗi phía server (G0-29 bước 6b): tải JWKS hỏng (DNS, TLS/PKIX, Keycloak sập, timeout).
+    // Đến đây nhờ failure handler không ném lại (SecurityConfig). Kiểu gần hơn AuthenticationException nên Spring chọn
+    // handler này, không phải handleAuthentication.
+    // 503, không 401: request không sai, phụ thuộc đang hỏng (RFC 9110 §15.6.4); 401 làm client xin token mới liên tục
+    // và cảnh báo theo 5xx không kêu. Không WWW-Authenticate (không mời gửi lại token), không Retry-After (không biết
+    // bao giờ Keycloak hồi phục).
+    @ExceptionHandler(AuthenticationServiceException.class)
+    @Nullable ResponseEntity<Object> handleAuthenticationService(AuthenticationServiceException ex, WebRequest request) {
+        // ERROR kèm stack trace: người trực cần thấy nguyên nhân (PKIX, UnknownHost...). Dòng log mang traceId của body.
+        log.error("Cannot verify bearer token", ex);
+        // detail cố định: message gốc chứa địa chỉ Keycloak và chi tiết TLS, không cho client biết.
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                "Token verification unavailable");
+        return handleExceptionInternal(ex, body, new HttpHeaders(), HttpStatus.SERVICE_UNAVAILABLE, request);
     }
 
     // Lưới cuối cho exception không ai xử lý (bug, DB sập...). Spring chọn handler có kiểu gần nhất, nên các

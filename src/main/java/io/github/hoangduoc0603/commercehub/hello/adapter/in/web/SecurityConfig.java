@@ -10,11 +10,14 @@ import org.springframework.boot.security.autoconfigure.actuate.web.servlet.Endpo
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
@@ -66,7 +69,25 @@ class SecurityConfig {
                 // trình duyệt gửi Accept: text/html.
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
-                        .authenticationEntryPoint(entryPoint))
+                        .authenticationEntryPoint(entryPoint)
+                        // Lỗi KHÔNG kiểm được token (tải JWKS hỏng: DNS, TLS, Keycloak sập) cũng đi qua entry point,
+                        // thay vì bị ném lại ra khỏi chain. Ném lại thì Tomcat forward tới /error, lượt ERROR dispatch
+                        // không có authentication nên ra 401 "Bearer token required": client tưởng lỗi của mình (bước 6
+                        // ticket G0-29, đo trên lab). Ở đây ApiExceptionHandler trả 503 có traceId.
+                        // DSL 7.1.2 không có chỗ đặt failure handler: dùng ObjectPostProcessor, chạy ngay sau khi
+                        // configurer tạo filter. Chỉ áp cho BearerTokenAuthenticationFilter (Spring lọc theo kiểu generic).
+                        // Phụ thuộc chi tiết bên trong configurer: nâng Spring Security thì JwksUnavailableTests canh.
+                        .withObjectPostProcessor(new ObjectPostProcessor<BearerTokenAuthenticationFilter>() {
+                            @Override
+                            public <O extends BearerTokenAuthenticationFilter> O postProcess(O filter) {
+                                AuthenticationEntryPointFailureHandler failureHandler =
+                                        new AuthenticationEntryPointFailureHandler(entryPoint);
+                                // Mặc định true: AuthenticationServiceException bị ném lại. false: tới entry point.
+                                failureHandler.setRethrowAuthenticationServiceException(false);
+                                filter.setAuthenticationFailureHandler(failureHandler);
+                                return filter;
+                            }
+                        }))
                 // Mỗi request tự mang token: không tạo HttpSession (không cookie JSESSIONID, không tốn RAM cho session).
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // CSRF lợi dụng việc trình duyệt tự gửi cookie. Bearer token không được trình duyệt tự gửi, và trình duyệt
