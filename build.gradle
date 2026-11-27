@@ -33,8 +33,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
     // Resource server (G0-29): Spring Security + kiểm JWT bằng Nimbus (chữ ký qua JWKS, iss, aud, exp, nbf).
-    // Chuẩn: docs/standards/keycloak.md mục "Resource server" (repo docs).
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    // Chuẩn: docs/standards/keycloak.md mục "Resource server" (repo docs). Tên Boot 4: spring-boot-starter-oauth2-*
+    // đã deprecated, POM 4.1.2 ghi "in favor of spring-boot-starter-security-oauth2-resource-server" (review G0-29).
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 
     // Flyway 10+ tách hỗ trợ từng loại DB ra module riêng; thiếu module này thì Flyway báo không hỗ trợ PostgreSQL.
     implementation 'org.flywaydb:flyway-database-postgresql'
@@ -51,8 +52,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-    // spring-security-test: jwt() cho MockMvc. Boot 4 không có starter oauth2-resource-server-test riêng.
-    testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+    // Test starter của resource server (kéo spring-security-test: jwt() cho MockMvc), đi cùng starter như các dòng trên.
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
     // Container là @Bean, Spring Boot quản vòng đời; dùng lại được cho bootTestRun (bước 8).
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     // Testcontainers 2.x (2.0.5 theo BOM Boot 4.1.2): artifact đổi tên thành testcontainers-<module>.

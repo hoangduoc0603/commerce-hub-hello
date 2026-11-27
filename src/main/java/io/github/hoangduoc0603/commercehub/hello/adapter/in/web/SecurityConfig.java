@@ -63,10 +63,15 @@ class SecurityConfig {
                         // Còn lại: phải có JWT hợp lệ. Phân quyền theo Member/Workspace là việc của G1.
                         .anyRequest().authenticated())
                 // Bật BearerTokenAuthenticationFilter + JwtDecoder do Boot dựng từ spring.security.oauth2.resourceserver.*.
-                // withDefaults(): không tự đổi claim thành quyền (keycloak.md: realm role không phải quyền Workspace).
+                // withDefaults(): JwtAuthenticationConverter mặc định chỉ đổi claim scope/scp thành authority SCOPE_*,
+                // không đổi realm role (realm_access.roles) thành quyền: đúng keycloak.md, realm role không phải quyền
+                // Workspace. G0 không có luật nào dùng authority.
                 // authenticationEntryPoint dùng cho cả token hỏng (BearerTokenAuthenticationFilter) lẫn thiếu token
                 // (ExceptionTranslationFilter). Chain chỉ có một entry point nên nó áp cho mọi request, kể cả
                 // trình duyệt gửi Accept: text/html.
+                // Chưa đặt accessDeniedHandler (403): G0 không có luật phân quyền nào ra 403, nên 403 không xảy ra; mặc định
+                // BearerTokenAccessDeniedHandler trả 403 không body. Thêm handler qua resolver như entryPoint khi G1 có
+                // phân quyền (rest-api.md mục "Lỗi trong filter").
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
                         .authenticationEntryPoint(entryPoint)
@@ -94,7 +99,7 @@ class SecurityConfig {
                 // không gọi hello trực tiếp (ADR-0011: BFF giữ phiên). Giữ CSRF thì mọi POST không có token ra 403
                 // thay vì 401, sai ngữ nghĩa. Spring Security docs: tắt khi chỉ phục vụ client không phải trình duyệt.
                 .csrf(AbstractHttpConfigurer::disable);
-        // Boot 4.1 tự khai method này không có "throws Exception"; giữ như vậy.
+        // build() của Spring Security 7 (AbstractSecurityBuilder) không khai "throws Exception", nên method này cũng không.
         return http.build();
     }
 }
