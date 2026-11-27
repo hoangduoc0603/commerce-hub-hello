@@ -3,11 +3,13 @@ package io.github.hoangduoc0603.commercehub.hello;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
@@ -16,17 +18,22 @@ import org.springframework.web.client.RestClient;
 // MOCK mặc định (MockMvc) xử lý request ngay trên thread của JUnit, không qua executor của Tomcat.
 // Với MOCK, test này không bao giờ đo được thứ cần đo.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
 class VirtualThreadTests {
 
     @LocalServerPort   // cổng Tomcat thật đang nghe, Spring tiêm vào sau khi server lên
     int port;
+
+    @Autowired
+    TestJwts jwts;
 
     @Test
     void requestIsHandledOnVirtualThread() {
         // RestClient có sẵn trong spring-web (đi cùng starter webmvc): không thêm dependency nào.
         String thread = RestClient.create("http://localhost:" + port)
                 .get().uri("/test/thread")
+                // G0-29: mọi route bắt JWT, kể cả controller chỉ có trong test.
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwts.valid())
                 .retrieve()
                 .body(String.class);
 
