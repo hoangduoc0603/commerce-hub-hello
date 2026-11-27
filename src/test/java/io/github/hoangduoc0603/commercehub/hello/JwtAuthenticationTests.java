@@ -109,7 +109,9 @@ class JwtAuthenticationTests {
                 Named.of("khóa lạ, cùng kid", jwts -> signWithStrangerKey(jwts, jwts.keyId())),
                 // kid không có trong JWKS: decoder tải lại JWKS, vẫn không thấy.
                 Named.of("khóa lạ, kid lạ", jwts -> signWithStrangerKey(jwts, "stranger")),
-                // Alg confusion: HMAC với secret là public key RSA. jws-algorithms: RS256 chặn trước khi kiểm chữ ký.
+                // Alg confusion: HMAC với secret là public key RSA. Bị chặn vì RS256 là thuật toán duy nhất được phép
+                // (mặc định của Boot; dòng jws-algorithms trong application.yaml chỉ ghi rõ ra, xóa dòng đó test vẫn xanh).
+                // Log TRACE cùng thông báo với "kid lạ" ("Another algorithm expected, or no matching key(s) found").
                 Named.of("HS256 ký bằng public key", jwts -> {
                     try {
                         return TestJwts.sign(JWSAlgorithm.HS256, jwts.keyId(),

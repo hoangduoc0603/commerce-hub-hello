@@ -60,10 +60,18 @@ class JwksUnavailableTests {
         // Chi tiết hạ tầng (lỗi TLS, địa chỉ Keycloak) không ra tới client.
         String body = response.getBody();
         assertThat(body).doesNotContain("PKIX").doesNotContain("auth.test");
+        // JsonPath trên đúng tên field (rest-api.md mục Test); không có $.type: about:blank thì Spring bỏ field.
+        assertThat(JsonPath.<String>read(body, "$.title")).isEqualTo("Service Unavailable");
+        assertThat(JsonPath.<Integer>read(body, "$.status")).isEqualTo(503);
+        assertThat(JsonPath.<String>read(body, "$.detail")).isEqualTo("Token verification unavailable");
         // traceId trong body tìm được dòng ERROR có nguyên nhân thật.
         String traceId = JsonPath.read(body, "$.traceId");
         assertThat(traceId).matches("[0-9a-f]{32}");
-        assertThat(output).contains("ERROR").contains(traceId).contains("PKIX path building failed (test)");
+        // Cùng MỘT dòng: ERROR, traceId của body, message của handler. Nguyên nhân (PKIX) nằm trong stack trace ngay sau.
+        assertThat(output.getAll().lines())
+                .anyMatch(line -> line.contains("ERROR") && line.contains(traceId)
+                        && line.contains("Cannot verify bearer token"));
+        assertThat(output).contains("PKIX path building failed (test)");
     }
 
     // Class lồng @TestConfiguration được nạp thêm vào context của test này.
