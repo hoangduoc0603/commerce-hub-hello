@@ -1,16 +1,18 @@
 package io.github.hoangduoc0603.commercehub.hello;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 // RANDOM_PORT: chạy Tomcat thật. Khi management.server.port khác cổng chính, Spring Boot test tự đổi
 // cả cổng quản trị sang cổng ngẫu nhiên, nên test không đụng app đang bootRun ở 8080/8081.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
 class ActuatorPortTests {
 
     @LocalServerPort       // cổng chính (vai trò 8080)
@@ -18,6 +20,9 @@ class ActuatorPortTests {
 
     @LocalManagementPort   // cổng Actuator (vai trò 8081). Chưa tách cổng thì giá trị bằng serverPort
     int managementPort;
+
+    @Autowired
+    TestJwts jwts;
 
     // RestTestClient (Spring Framework 7, có sẵn trong spring-test) gọi HTTP thật, có sẵn
     // assertion cho status và JSON. Không cần thêm dependency.
@@ -38,8 +43,11 @@ class ActuatorPortTests {
 
     @Test
     void actuatorIsNotOnMainPort() {
-        // Cổng chính sẽ mở ra ngoài qua Gateway edge, nên không được có /actuator.
-        on(serverPort).get().uri("/actuator/health").exchange()
+        // Cổng chính sẽ mở ra ngoài qua Gateway edge, nên không được có /actuator. Gửi token hợp lệ (G0-29): không token
+        // thì Security trả 401 trước khi tới định tuyến, test không phân biệt được "không có" với "bị chặn".
+        on(serverPort).get().uri("/actuator/health")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwts.valid())
+                .exchange()
                 .expectStatus().isNotFound();
     }
 

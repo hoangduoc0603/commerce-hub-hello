@@ -9,20 +9,35 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 // G0-29: mọi route bắt JWT của realm commerce-hub (keycloak.md mục "Resource server", BR-04 phần token).
-// Bước 1 chỉ có case "không token". Token thật và token xấu ở bước 2, 4.
+// Token ký thật bằng TestJwts, decoder thật của Boot tải JWKS giả (TestJwtConfiguration). Token xấu ở bước 4.
 @SpringBootTest
 // addFilters mặc định true: MockMvc chạy cả springSecurityFilterChain, đúng như Tomcat thật.
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, TestJwtConfiguration.class})
 class JwtAuthenticationTests {
 
     @Autowired
     MockMvcTester mvc;
+
+    @Autowired
+    TestJwts jwts;
+
+    @Test
+    void BR04_validTokenCanCreateGreeting() {
+        // Token đi qua JwtDecoder thật của Boot: tải JWKS, chọn khóa theo kid, kiểm chữ ký, rồi iss, aud, exp, nbf, typ.
+        assertThat(mvc.post().uri("/v1/greetings")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwts.valid())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name": "Đức"}"""))
+                .hasStatus(HttpStatus.CREATED);
+    }
 
     @Test
     void BR04_readWithoutTokenIsUnauthorized() {
