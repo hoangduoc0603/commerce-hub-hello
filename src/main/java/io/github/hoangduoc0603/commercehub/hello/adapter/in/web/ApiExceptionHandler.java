@@ -112,7 +112,9 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         if (ex instanceof OAuth2AuthenticationException oauth2 && oauth2.getError() instanceof BearerTokenError error) {
             status = error.getHttpStatus();
             // Chỉ mã lỗi. Bỏ error_description và resource_metadata mà entry point mặc định thêm: mô tả nói rõ lý do
-            // từ chối. Lý do xem ở log DEBUG của org.springframework.security.
+            // từ chối. Lý do nằm ở log: đủ mọi trường hợp ở TRACE của BearerTokenAuthenticationFilter
+            // ("Failed to process authentication request" kèm exception); DEBUG chỉ có lỗi của validator (iss, aud, exp),
+            // không có lỗi chữ ký hay thuật toán (đã đo bước 4).
             challenge = "Bearer error=\"%s\"".formatted(error.getErrorCode());
             detail = "Bearer token rejected: " + error.getErrorCode();
         }
