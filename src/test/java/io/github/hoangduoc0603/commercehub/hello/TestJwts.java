@@ -7,6 +7,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -43,28 +44,61 @@ class TestJwts {
     }
 
     // Giống token client credentials của smoke-test đo ở G0-11: RS256, typ JWT, aud là CHUỖI (không phải mảng),
-    // sống 300 s. Bước 4 thêm các biến thể xấu từ đây.
+    // sống 300 s.
     String valid() {
+        return sign(validClaims().build());
+    }
+
+    // Điểm xuất phát của mọi token xấu ở bước 4: token hợp lệ, test đổi đúng MỘT điểm. Token hợp lệ đã được chứng minh
+    // là qua (BR04_validTokenCanCreateGreeting), nên bị từ chối thì điểm vừa đổi là lý do. Mỗi lần gọi lấy giờ mới.
+    JWTClaimsSet.Builder validClaims() {
         Instant now = Instant.now();
-        return sign(new JWTClaimsSet.Builder()
+        return new JWTClaimsSet.Builder()
                 .issuer(issuer)
                 // audience(String): Nimbus ghi aud dạng chuỗi khi chỉ có một giá trị, như Keycloak.
                 .audience(AUDIENCE)
                 .subject("service-account-smoke-test")
                 .issueTime(Date.from(now))
-                .expirationTime(Date.from(now.plusSeconds(300)))
-                .build());
+                .expirationTime(Date.from(now.plusSeconds(300)));
     }
 
+    String issuer() {
+        return issuer;
+    }
+
+    // kid thật: kẻ tấn công đọc được từ JWKS công khai.
+    String keyId() {
+        return key.getKeyID();
+    }
+
+    // Public key dạng X.509 DER: thứ kẻ tấn công lấy từ JWKS để làm secret HMAC (alg confusion, RFC 8725 §2.1).
+    byte[] publicKeyBytes() {
+        try {
+            return key.toRSAPublicKey().getEncoded();
+        } catch (JOSEException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // Ký bằng khóa của "Keycloak giả": token mà decoder tin được.
     String sign(JWTClaimsSet claims) {
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
-                .keyID(key.getKeyID())
+        try {
+            return sign(JWSAlgorithm.RS256, key.getKeyID(), new RSASSASigner(key), claims);
+        } catch (JOSEException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // Ký với thuật toán, kid, khóa tùy ý: dùng để giả làm kẻ tấn công (khóa lạ, HS256).
+    static String sign(JWSAlgorithm alg, String keyId, JWSSigner signer, JWTClaimsSet claims) {
+        JWSHeader header = new JWSHeader.Builder(alg)
+                .keyID(keyId)
                 // Security 7 mặc định có JwtTypeValidator.jwt(): typ phải là "JWT" (Keycloak ghi đúng như vậy).
                 .type(JOSEObjectType.JWT)
                 .build();
         SignedJWT jwt = new SignedJWT(header, claims);
         try {
-            jwt.sign(new RSASSASigner(key));
+            jwt.sign(signer);
         } catch (JOSEException e) {
             throw new IllegalStateException(e);
         }
