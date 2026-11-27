@@ -2,6 +2,21 @@ spring:
   application:
     name: hello
 
+  # Resource server (G0-29). Chuẩn: docs/standards/keycloak.md mục "Resource server" (repo docs).
+  # issuer-uri và jwk-set-uri KHÔNG đặt ở đây: địa chỉ Keycloak đổi theo môi trường (lab: env trong values gitops;
+  # test: src/test/resources/config/application.yaml). Thiếu cả hai thì không có bean JwtDecoder và SecurityConfig
+  # lỗi lúc khởi động: thà không chạy còn hơn chạy với địa chỉ sai rồi trả 401 cho mọi request.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Boot thêm JwtClaimValidator trên claim aud: token phải có commerce-hub-api trong aud. Thiếu dòng này thì
+          # token Keycloak phát cho client khác cùng realm (aud: account) vẫn lọt qua, vì cùng khóa ký và cùng iss.
+          audiences: commerce-hub-api
+          # Mặc định của Boot đã là RS256; ghi rõ để thấy danh sách thuật toán được phép. Token ký bằng thuật toán
+          # khác (HS256, none) bị từ chối trước khi kiểm chữ ký.
+          jws-algorithms: RS256
+
   # Migration (G0-26). Chuẩn: docs/standards/db-migration.md (repo docs).
   flyway:
     # Runtime KHÔNG migrate: pod chỉ có credential hello_app (không có quyền DDL). Chỉ profile migrate (Job PreSync,
