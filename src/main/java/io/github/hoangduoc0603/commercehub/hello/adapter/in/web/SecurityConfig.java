@@ -1,5 +1,7 @@
 package io.github.hoangduoc0603.commercehub.hello.adapter.in.web;
 
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.actuate.endpoint.web.WebServerNamespace;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
@@ -11,7 +13,9 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
  * @author duochv on 11/27/26 10:52
@@ -28,7 +32,19 @@ import org.springframework.security.web.SecurityFilterChain;
 class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) {
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
+            // Qualifier bắt buộc: Boot có thêm bean DefaultErrorAttributes cũng là HandlerExceptionResolver.
+            // "handlerExceptionResolver" là chuỗi resolver của MVC, trong đó ExceptionHandlerExceptionResolver gọi
+            // các @ExceptionHandler của @RestControllerAdvice.
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
+        // Lỗi trong filter không tới @RestControllerAdvice (rest-api.md): chuyển cho resolver của MVC để 401 đi cùng
+        // đường với mọi lỗi khác và có traceId (Q2 ticket G0-29). handler = null: chưa chọn controller nào.
+        AuthenticationEntryPoint entryPoint = (request, response, ex) -> {
+            // null = không resolver nào nhận, response chưa được ghi gì. Không có nhánh này thì client nhận 200 body rỗng.
+            if (resolver.resolveException(request, response, null, ex) == null) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            }
+        };
         http
                 // Luật xét từ trên xuống, khớp luật nào thì dừng. anyRequest() phải đứng cuối.
                 .authorizeHttpRequests(requests -> requests
@@ -45,7 +61,12 @@ class SecurityConfig {
                         .anyRequest().authenticated())
                 // Bật BearerTokenAuthenticationFilter + JwtDecoder do Boot dựng từ spring.security.oauth2.resourceserver.*.
                 // withDefaults(): không tự đổi claim thành quyền (keycloak.md: realm role không phải quyền Workspace).
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                // authenticationEntryPoint dùng cho cả token hỏng (BearerTokenAuthenticationFilter) lẫn thiếu token
+                // (ExceptionTranslationFilter). Chain chỉ có một entry point nên nó áp cho mọi request, kể cả
+                // trình duyệt gửi Accept: text/html.
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(entryPoint))
                 // Mỗi request tự mang token: không tạo HttpSession (không cookie JSESSIONID, không tốn RAM cho session).
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // CSRF lợi dụng việc trình duyệt tự gửi cookie. Bearer token không được trình duyệt tự gửi, và trình duyệt

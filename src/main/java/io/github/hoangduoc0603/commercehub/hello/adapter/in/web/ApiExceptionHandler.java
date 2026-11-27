@@ -14,6 +14,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.server.resource.BearerTokenError;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -93,6 +96,30 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             }
         }
         return super.createResponseEntity(body, headers, statusCode, request);
+    }
+
+    // 401 từ filter của Spring Security (qua entry point trong SecurityConfig, G0-29). Spring chọn handler có kiểu gần
+    // nhất, nên AuthenticationException tới đây chứ không rơi vào handleUnexpected. Lỗi tải JWKS
+    // (AuthenticationServiceException) không tới đây: Security ném lại trước entry point (xem bước 6 ticket).
+    @ExceptionHandler(AuthenticationException.class)
+    @Nullable ResponseEntity<Object> handleAuthentication(AuthenticationException ex, WebRequest request) {
+        // Không có token (InsufficientAuthenticationException): RFC 6750 §3 chỉ "Bearer", không mã lỗi.
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        String challenge = "Bearer";
+        String detail = "Bearer token required";
+        // Có token mà bị từ chối: BearerTokenError mang mã RFC 6750 §3.1 và status tương ứng (invalid_token 401;
+        // invalid_request 400, ví dụ gửi token ở cả header lẫn query, G0 chưa test).
+        if (ex instanceof OAuth2AuthenticationException oauth2 && oauth2.getError() instanceof BearerTokenError error) {
+            status = error.getHttpStatus();
+            // Chỉ mã lỗi. Bỏ error_description và resource_metadata mà entry point mặc định thêm: mô tả nói rõ lý do
+            // từ chối. Lý do xem ở log DEBUG của org.springframework.security.
+            challenge = "Bearer error=\"%s\"".formatted(error.getErrorCode());
+            detail = "Bearer token rejected: " + error.getErrorCode();
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.WWW_AUTHENTICATE, challenge);
+        // Không log: lỗi 4xx của client (rest-api.md). Qua handleExceptionInternal để createResponseEntity gắn traceId.
+        return handleExceptionInternal(ex, ProblemDetail.forStatusAndDetail(status, detail), headers, status, request);
     }
 
     // Lưới cuối cho exception không ai xử lý (bug, DB sập...). Spring chọn handler có kiểu gần nhất, nên các
