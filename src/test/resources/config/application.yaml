@@ -9,3 +9,15 @@
 spring:
   flyway:
     enabled: true
+
+  # G0-29. Địa chỉ giả: .test là TLD dành riêng (RFC 2606), không bao giờ phân giải được, nên lỡ có request thật thì
+  # lỗi ngay chứ không đi ra Internet. Decoder tải JWKS lười (lúc giải mã token đầu tiên), nên khởi động không gọi
+  # tới đây. Phải đặt ở file này, không trong registrar: bean JwtDecoder có điều kiện @ConditionalOnJwkSetUriJwtDecoder,
+  # đánh giá trước registrar (cùng bẫy với spring.flyway.enabled ở trên).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Có cả hai thì Boot tải khóa từ jwk-set-uri và vẫn thêm JwtIssuerValidator so iss với issuer-uri.
+          issuer-uri: https://auth.test/realms/commerce-hub
+          jwk-set-uri: https://auth.test/realms/commerce-hub/protocol/openid-connect/certs

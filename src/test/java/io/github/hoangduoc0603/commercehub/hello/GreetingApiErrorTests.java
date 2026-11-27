@@ -1,6 +1,8 @@
 package io.github.hoangduoc0603.commercehub.hello;
 
 import static org.assertj.core.api.Assertions.assertThat;
+// jwt(): đặt sẵn JwtAuthenticationToken vào SecurityContext, KHÔNG qua JwtDecoder (G0-29). Kiểm token thật: JwtAuthenticationTests.
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.util.stream.Stream;
 
@@ -74,7 +76,7 @@ class GreetingApiErrorTests {
     }
 
     private MvcTestResult post(String body) {
-        return mvc.post().uri("/v1/greetings")
+        return mvc.post().uri("/v1/greetings").with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
                 .exchange();

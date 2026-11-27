@@ -1,6 +1,8 @@
 package io.github.hoangduoc0603.commercehub.hello;
 
 import static org.assertj.core.api.Assertions.assertThat;
+// jwt(): đặt sẵn JwtAuthenticationToken vào SecurityContext, KHÔNG qua JwtDecoder (G0-29). Kiểm token thật: JwtAuthenticationTests.
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
@@ -37,7 +39,7 @@ class UnexpectedErrorTests {
 
     @Test
     void unexpectedExceptionReturns500ProblemWithoutLeaking(CapturedOutput output) throws Exception {
-        MvcTestResult result = mvc.get().uri("/test/boom").exchange();
+        MvcTestResult result = mvc.get().uri("/test/boom").with(jwt()).exchange();
 
         assertThat(result)
                 .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)

@@ -1,6 +1,8 @@
 package io.github.hoangduoc0603.commercehub.hello;
 
 import static org.assertj.core.api.Assertions.assertThat;
+// jwt(): đặt sẵn JwtAuthenticationToken vào SecurityContext, KHÔNG qua JwtDecoder (G0-29). Kiểm token thật: JwtAuthenticationTests.
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +28,7 @@ class GreetingApiTests {
 
     @Test
     void createdGreetingCanBeReadBack() {
-        MvcTestResult created = mvc.post().uri("/v1/greetings")
+        MvcTestResult created = mvc.post().uri("/v1/greetings").with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 // Có dấu tiếng Việt: kiểm UTF-8 đi suốt từ JSON xuống DB rồi về.
                 .content("""
@@ -46,7 +48,7 @@ class GreetingApiTests {
                 .matches("\\d{4}-\\d{2}-\\d{2}T[0-9:.]+Z");
 
         // Đọc lại đúng địa chỉ trong Location. isLenientlyEqualTo: chỉ so các field liệt kê, bỏ qua createdAt.
-        assertThat(mvc.get().uri(location))
+        assertThat(mvc.get().uri(location).with(jwt()))
                 .hasStatusOk()
                 .bodyJson()
                 .isLenientlyEqualTo("""
