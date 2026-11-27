@@ -40,9 +40,13 @@ COPY --from=extract /builder/extracted/application/ ./
 # (unix:///dev/otel-grpc.sock) vào bước RUN; Boot 4 đọc biến OTEL_* thành property, nên tạo exporter gRPC và lỗi
 # "Invalid endpoint", build đỏ. Tái hiện trên máy 2026-11-26: OTEL_TRACES_EXPORTER=otlp cộng endpoint đó và
 # protocol grpc thì app không khởi động, kể cả khi có management.tracing.export.otlp.enabled=false ở yaml hay -D.
+# issuer-uri, jwk-set-uri giả (G0-29): thiếu thì không có bean JwtDecoder và training run dừng lúc khởi động (CI đỏ ở
+# PR hello#11). .invalid như datasource; JWKS tải lười, không request nào gọi tới. Runtime lấy giá trị thật từ env.
 RUN for v in $(env | grep -o '^OTEL_[A-Za-z0-9_]*'); do unset "$v"; done; \
     java -XX:AOTCacheOutput=app.aot -Dspring.context.exit=onRefresh \
         -Dspring.datasource.url=jdbc:postgresql://aot-training.invalid:5432/hello \
+        -Dspring.security.oauth2.resourceserver.jwt.issuer-uri=https://aot-training.invalid/realms/commerce-hub \
+        -Dspring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://aot-training.invalid/realms/commerce-hub/protocol/openid-connect/certs \
         -jar application.jar
 
 # Nhãn tĩnh (G0-23 Q8). revision, version, created do CI đặt lúc build (labels: của build-push-action trong
